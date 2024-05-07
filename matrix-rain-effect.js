@@ -118,7 +118,7 @@ class MatrixRain {
         // Only update the canvas if enough time has passed based on the target frame rate
         if (elapsed > this.frameInterval) {
             // Set the canvas background and text properties
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
             this.ctx.font = this.fontSize + 'px monospace';
 
