@@ -32,7 +32,7 @@
  * <canvas id="matrix-rain"></canvas>
  *
  * Author: Guillermo Castaneda Echegaray
- * Version: 2.0
+ * Version: 2.1
  * License: MIT License (feel free to use and modify this script as per the MIT License conditions)
  */
 class MatrixRain {
@@ -52,6 +52,17 @@ class MatrixRain {
         // Variables for controlling the animation speed
         this.lastFrameTime = Date.now();
         this.frameInterval = 1000 / 15; // Target frame rate to control speed
+
+        // Set a time interval for the trail color to change
+        this.colorChangeInterval = 1000 * 60; // 1 minute
+        this.lastColorChangeTime = Date.now();
+        this.colors = [
+            '0, 255, 0', // Green
+            '255, 0, 0', // Red
+            '255, 191, 0', // Amber
+            '255, 255, 255' // White
+        ];
+        this.currentColorIndex = 0; // Yeah, start with green, why not?
 
         // Initial setup: Set canvas size and initialize drops
         this.initializeCanvas();
@@ -79,8 +90,9 @@ class MatrixRain {
         for (let x = 0; x < this.columns; x++) {
             this.drops[x] = {
                 y: 1,
-                speed: 0.5 + Math.random(), // Random speed between 0.5 and 1.5
-                brightness: 0.3 + Math.random() * 0.7 // Random brightness between 0.3 and 1.0
+                speed: 0.5 + Math.random(),                // Random speed between 0.5 and 1.5
+                brightness: 0.3 + Math.random() * 0.7,     // Random brightness between 0.3 and 1.0
+                color: this.colors[this.currentColorIndex] // Set initial color
             };
         }
     }
@@ -126,18 +138,25 @@ class MatrixRain {
             // Draw each drop
             for (let i = 0; i < this.drops.length; i++) {
                 const drop = this.drops[i];
-                this.ctx.fillStyle = `rgba(0, 255, 0, ${drop.brightness})`; // Varying brightness for each drop
+                this.ctx.fillStyle = `rgba(${this.colors[this.currentColorIndex]}, ${drop.brightness})`; // Varying brightness for each drop
                 const text = this.getRandomCharacter();
                 this.ctx.fillText(text, i * this.fontSize, drop.y * this.fontSize);
 
                 // Reset the drop when it reaches the bottom of the canvas
                 if (drop.y * this.fontSize > this.canvas.height && Math.random() > 0.975) {
                     drop.y = 0;
-                    drop.brightness = 0.3 + Math.random() * 0.6; // Also reset brightness
+                    drop.brightness = 0.3 + Math.random() * 0.6;      // Also reset brightness
+                    drop.color = this.colors[this.currentColorIndex]; // Reset color when the drop resets
                 }
 
                 // Increment the drop's position based on its speed
                 drop.y += drop.speed;
+
+                // Update the current color index after all drops are drawn to avoid mid-air color changes
+                if (now - this.lastColorChangeTime > this.colorChangeInterval) {
+                    this.currentColorIndex = (this.currentColorIndex + 1) % this.colors.length;
+                    this.lastColorChangeTime = now;
+                }
 
                 // Adjust last frame time for the next iteration
                 this.lastFrameTime = now - (elapsed % this.frameInterval);
