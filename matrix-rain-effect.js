@@ -153,16 +153,16 @@ class MatrixRain {
 
                 // Increment the drop's position based on its speed
                 drop.y += drop.speed;
-
-                // Update the current color index after all drops are drawn to avoid mid-air color changes
-                if (now - this.lastColorChangeTime > this.colorChangeInterval) {
-                    this.currentColorIndex = (this.currentColorIndex + 1) % this.colors.length;
-                    this.lastColorChangeTime = now;
-                }
-
-                // Adjust last frame time for the next iteration
-                this.lastFrameTime = now - (elapsed % this.frameInterval);
             }
+
+            // Update the current color index once per frame
+            if (now - this.lastColorChangeTime > this.colorChangeInterval) {
+                this.currentColorIndex = (this.currentColorIndex + 1) % this.colors.length;
+                this.lastColorChangeTime = now;
+            }
+
+            // Adjust last frame time once after the complete frame has been rendered
+            this.lastFrameTime = now - (elapsed % this.frameInterval);
         }
         // Request the next frame to continue the animation
         requestAnimationFrame(() => this.draw());
