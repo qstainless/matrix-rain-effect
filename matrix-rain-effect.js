@@ -34,7 +34,7 @@
  * <canvas id="matrix-rain"></canvas>
  *
  * Author: Guillermo Castaneda Echegaray
- * Version: 2.1
+ * Version: 2.2
  * License: MIT License (feel free to use and modify this script as per the MIT License conditions)
  */
 class MatrixRain {
