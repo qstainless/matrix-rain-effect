@@ -9,7 +9,7 @@
  * - displays a continuous stream of falling characters on a canvas element.
  * - allows for customization of character sets and falling speed.
  * - dynamically adjusts to the size of the browser window and responds to resizing events.
- * - shows varying degrees of brightness, providing a simplistic 3D effect.
+ * - varies character scale, brightness, and speed to create a lightweight 3D effect.
  *
  * Dependencies:
  * - A modern web browser with support for HTML5 canvas and JavaScript ES6 features.
@@ -34,8 +34,9 @@
  * <canvas id="matrix-rain"></canvas>
  *
  * Author: Guillermo Castaneda Echegaray
- * Version: 2.2
+ * Version: 2.3
  * License: MIT License (feel free to use and modify this script as per the MIT License conditions)
+ * @link https://github.com/qstainless/matrix-rain-effect
  */
 class MatrixRain {
 
@@ -47,6 +48,15 @@ class MatrixRain {
 
         // Set the font size for the rain characters
         this.fontSize = 12;
+
+        // Perspective range: distant streams are smaller and slower than foreground streams.
+        this.minDepth = 0.35;
+        this.maxDepth = 1;
+        this.minCharacterSize = 6;
+        this.maxCharacterSize = 14;
+        this.layersPerColumn = 3;
+        this.leadingCharacterColor = '220, 255, 220';
+        this.trailLength = 3;
 
         // Initialize an array to keep track of each drop's position and properties
         this.drops = [];
@@ -86,16 +96,29 @@ class MatrixRain {
         this.columns = this.canvas.width / this.fontSize;
     }
 
-    // Initializes or resets drops for each column with random speed and brightness
+    // Initializes or resets drops for each column with random depth, speed, and brightness
     initializeDrops() {
         this.drops = [];
         for (let x = 0; x < this.columns; x++) {
-            this.drops[x] = {
-                y: 1,
-                speed: 0.5 + Math.random(),                // Random speed between 0.5 and 1.5
-                brightness: 0.3 + Math.random() * 0.7,     // Random brightness between 0.3 and 1.0
-                color: this.colors[this.currentColorIndex] // Set initial color
-            };
+            for (let layer = 0; layer < this.layersPerColumn; layer++) {
+                const layerPosition = this.layersPerColumn === 1
+                    ? 0.5
+                    : layer / (this.layersPerColumn - 1);
+                const depth = this.minDepth + layerPosition * (this.maxDepth - this.minDepth);
+
+                this.drops.push({
+                    // Start each layer at a different point so the streams overlap over time.
+                    y: Math.random() * (this.canvas.height / this.fontSize + 4) - 4,
+                    x: x * this.fontSize + (Math.random() - 0.5) * this.fontSize * 0.9,
+                    depth,
+                    scale: (this.minCharacterSize +
+                        ((depth - this.minDepth) / (this.maxDepth - this.minDepth)) *
+                        (this.maxCharacterSize - this.minCharacterSize)) / this.fontSize,
+                    speed: 0.35 + depth * 0.9,             // Far streams move more slowly
+                    brightness: Math.min(1, 0.2 + Math.random() * 0.45 + depth * 0.35),
+                    color: this.colors[this.currentColorIndex] // Set initial color
+                });
+            }
         }
     }
 
@@ -137,17 +160,36 @@ class MatrixRain {
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
             this.ctx.font = this.fontSize + 'px monospace';
 
-            // Draw each drop
-            for (let i = 0; i < this.drops.length; i++) {
-                const drop = this.drops[i];
-                this.ctx.fillStyle = `rgba(${this.colors[this.currentColorIndex]}, ${drop.brightness})`; // Varying brightness for each drop
-                const text = this.getRandomCharacter();
-                this.ctx.fillText(text, i * this.fontSize, drop.y * this.fontSize);
+            // Paint distant drops first so foreground drops can cover them.
+            const dropsByDepth = [...this.drops].sort((a, b) => a.depth - b.depth);
+            for (const drop of dropsByDepth) {
+                const x = drop.x;
+                const y = drop.y * this.fontSize;
+
+                // Draw the colored trail first so the white-green leader remains distinct.
+                for (let trailIndex = this.trailLength; trailIndex > 0; trailIndex--) {
+                    const trailAlpha = drop.brightness * 0.55 *
+                        (1 - trailIndex / (this.trailLength + 1));
+                    this.ctx.fillStyle = `rgba(${this.colors[this.currentColorIndex]}, ${trailAlpha})`;
+                    this.ctx.save();
+                    this.ctx.translate(x, y - trailIndex * this.fontSize * 1.1);
+                    this.ctx.scale(drop.scale, drop.scale);
+                    this.ctx.fillText(this.getRandomCharacter(), 0, 0);
+                    this.ctx.restore();
+                }
+
+                // Draw the leading character on top of its colored trail.
+                this.ctx.fillStyle = `rgba(${this.leadingCharacterColor}, ${Math.min(1, drop.brightness + 0.35)})`;
+                this.ctx.save();
+                this.ctx.translate(x, y);
+                this.ctx.scale(drop.scale, drop.scale);
+                this.ctx.fillText(this.getRandomCharacter(), 0, 0);
+                this.ctx.restore();
 
                 // Reset the drop when it reaches the bottom of the canvas
                 if (drop.y * this.fontSize > this.canvas.height && Math.random() > 0.975) {
                     drop.y = 0;
-                    drop.brightness = 0.3 + Math.random() * 0.6;      // Also reset brightness
+                    drop.brightness = Math.min(1, 0.2 + Math.random() * 0.45 + drop.depth * 0.35);
                     drop.color = this.colors[this.currentColorIndex]; // Reset color when the drop resets
                 }
 
