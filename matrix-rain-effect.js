@@ -45,6 +45,8 @@ class MatrixRain {
         // Get the canvas element by ID and its drawing context
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
+        this.trailCanvas = document.createElement('canvas');
+        this.trailCtx = this.trailCanvas.getContext('2d');
 
         // Set the font size for the rain characters
         this.fontSize = 12;
@@ -56,6 +58,7 @@ class MatrixRain {
         this.maxCharacterSize = 14;
         this.layersPerColumn = 3;
         this.leadingCharacterColor = '220, 255, 220';
+        this.leadingCharacterChance = 0.25;
         this.trailLength = 3;
 
         // Initialize an array to keep track of each drop's position and properties
@@ -91,6 +94,8 @@ class MatrixRain {
         // Sets the canvas size to fill the entire viewport
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
+        this.trailCanvas.width = this.canvas.width;
+        this.trailCanvas.height = this.canvas.height;
 
         // Calculate the number of columns based on the font size
         this.columns = this.canvas.width / this.fontSize;
@@ -116,6 +121,7 @@ class MatrixRain {
                         (this.maxCharacterSize - this.minCharacterSize)) / this.fontSize,
                     speed: 0.35 + depth * 0.9,             // Far streams move more slowly
                     brightness: Math.min(1, 0.2 + Math.random() * 0.45 + depth * 0.35),
+                    hasLeadingCharacter: Math.random() < this.leadingCharacterChance,
                     color: this.colors[this.currentColorIndex] // Set initial color
                 });
             }
@@ -133,6 +139,11 @@ class MatrixRain {
     getRandomCharacter() {
         // Define character ranges from various scripts
         const ranges = [
+            [0x21, 0x30],   // ASCII punctuation and symbols: ! through /
+            [0x30, 0x3A],   // ASCII digits: 0 through 9
+            [0x3A, 0x41],   // ASCII punctuation and symbols: : through @
+            [0x5B, 0x61],   // ASCII punctuation and symbols: [ through `
+            [0x7B, 0x7F],   // ASCII punctuation and symbols: { through ~
             [0x30A0, 0x30FF], // Katakana
             [0x4E00, 0x4F80], // Subset of Chinese
             [0x00C0, 0x00FF], // Latin-1 Supplement for Vietnamese
@@ -155,10 +166,10 @@ class MatrixRain {
 
         // Only update the canvas if enough time has passed based on the target frame rate
         if (elapsed > this.frameInterval) {
-            // Set the canvas background and text properties
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.font = this.fontSize + 'px monospace';
+            // Fade only the colored trail layer; leaders never become part of it.
+            this.trailCtx.fillStyle = 'rgba(0, 0, 0, 0.03)';
+            this.trailCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.trailCtx.font = this.fontSize + 'px monospace';
 
             // Paint distant drops first so foreground drops can cover them.
             const dropsByDepth = [...this.drops].sort((a, b) => a.depth - b.depth);
@@ -166,20 +177,33 @@ class MatrixRain {
                 const x = drop.x;
                 const y = drop.y * this.fontSize;
 
-                // Draw the colored trail first so the white-green leader remains distinct.
+                // Draw trails on their own persistent layer.
                 for (let trailIndex = this.trailLength; trailIndex > 0; trailIndex--) {
-                    const trailAlpha = drop.brightness * 0.55 *
+                    const trailAlpha = drop.brightness * 0.70 *
                         (1 - trailIndex / (this.trailLength + 1));
-                    this.ctx.fillStyle = `rgba(${this.colors[this.currentColorIndex]}, ${trailAlpha})`;
-                    this.ctx.save();
-                    this.ctx.translate(x, y - trailIndex * this.fontSize * 1.1);
-                    this.ctx.scale(drop.scale, drop.scale);
-                    this.ctx.fillText(this.getRandomCharacter(), 0, 0);
-                    this.ctx.restore();
+                    this.trailCtx.fillStyle = `rgba(${this.colors[this.currentColorIndex]}, ${trailAlpha})`;
+                    this.trailCtx.save();
+                    this.trailCtx.translate(x, y - trailIndex * this.fontSize * 1.1);
+                    this.trailCtx.scale(drop.scale, drop.scale);
+                    this.trailCtx.fillText(this.getRandomCharacter(), 0, 0);
+                    this.trailCtx.restore();
                 }
+            }
 
-                // Draw the leading character on top of its colored trail.
-                this.ctx.fillStyle = `rgba(${this.leadingCharacterColor}, ${Math.min(1, drop.brightness + 0.35)})`;
+            // Composite the trail, then draw leaders on a clean foreground layer.
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.drawImage(this.trailCanvas, 0, 0);
+            this.ctx.font = this.fontSize + 'px monospace';
+
+            for (const drop of dropsByDepth) {
+                const x = drop.x;
+                const y = drop.y * this.fontSize;
+
+                // Leaders are drawn only on the foreground layer.
+                const headColor = drop.hasLeadingCharacter
+                    ? this.leadingCharacterColor
+                    : this.colors[this.currentColorIndex];
+                this.ctx.fillStyle = `rgba(${headColor}, ${Math.min(1, drop.brightness + 0.35)})`;
                 this.ctx.save();
                 this.ctx.translate(x, y);
                 this.ctx.scale(drop.scale, drop.scale);
@@ -190,6 +214,7 @@ class MatrixRain {
                 if (drop.y * this.fontSize > this.canvas.height && Math.random() > 0.975) {
                     drop.y = 0;
                     drop.brightness = Math.min(1, 0.2 + Math.random() * 0.45 + drop.depth * 0.35);
+                    drop.hasLeadingCharacter = Math.random() < this.leadingCharacterChance;
                     drop.color = this.colors[this.currentColorIndex]; // Reset color when the drop resets
                 }
 
